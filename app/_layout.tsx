@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, AppState, Linking } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
@@ -8,8 +8,21 @@ import { LanguageProvider } from '../i18n';
 import { colors } from '../constants/colors';
 
 function AppContent() {
-  const { isAuthenticated, session, logout, loginSSO } = useAuth();
+  const { isAuthenticated, mode, session, logout, loginSSO } = useAuth();
   const initialURLProcessed = useRef(false);
+  const segments = useSegments();
+
+  // Auth-based routing: redirect to login or tabs based on auth state
+  useEffect(() => {
+    if (mode === 'checking') return; // Still loading, don't redirect yet
+    const inLoginGroup = segments[0] === 'login';
+    const inPendingFlow = mode === 'pending' || mode === 'approved' || mode === 'rejected';
+    if (isAuthenticated && inLoginGroup) {
+      router.replace('/(tabs)');
+    } else if (!isAuthenticated && !inLoginGroup && !inPendingFlow) {
+      router.replace('/login');
+    }
+  }, [isAuthenticated, mode, segments]);
 
   // Handle SSO deep links: wbewallet://login?hash={hash}&name={name}
   // Also handles logout: wbewallet://logout
