@@ -27,7 +27,11 @@
         "backgroundColor": "#0A0E1A"
       },
       "package": "com.wellbuilt.ewallet",
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -54,7 +58,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "placeholder-update-after-eas-init"
+        "projectId": "855de803-070e-47a3-9ca6-478daf84e814"
       },
       "router": {
         "origin": false
