@@ -1,30 +1,61 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, AppState, Linking } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { LanguageProvider } from '../i18n';
 import { colors } from '../constants/colors';
 
 function AppContent() {
-  const { isAuthenticated, session, logout } = useAuth();
+  const { isAuthenticated, session, logout, loginSSO } = useAuth();
+  const initialURLProcessed = useRef(false);
 
   // Handle SSO deep links: wbewallet://login?hash={hash}&name={name}
+  // Also handles logout: wbewallet://logout
   useEffect(() => {
-    const handleUrl = (event: { url: string }) => {
-      const url = event.url;
-      if (!url?.includes('login?')) return;
-      const params = new URLSearchParams(url.split('?')[1]);
-      const hash = params.get('hash');
-      const name = params.get('name');
-      if (hash && name) {
-        // SSO login handled by AuthContext
-        console.log('[eWallet] SSO deep link received for:', name);
-      }
+    const handleSSODeepLink = async (url: string) => {
+      const hashMatch = url.match(/[?&]hash=([^&]+)/);
+      const nameMatch = url.match(/[?&]name=([^&]+)/);
+      if (!hashMatch || !nameMatch) return;
+
+      const incomingHash = decodeURIComponent(hashMatch[1]);
+      const incomingName = decodeURIComponent(nameMatch[1]);
+      console.log('[eWallet-SSO] Deep link received for:', incomingName);
+
+      await loginSSO(incomingHash, incomingName);
     };
-    const sub = Linking.addEventListener('url', handleUrl);
+
+    const handleLogoutDeepLink = async () => {
+      // Only auto-logout if this session was started via SSO from WB S.
+      // Manual logins are driver-owned — WB S doesn't control them.
+      const authMethod = await SecureStore.getItemAsync('wbew_authMethod');
+      if (authMethod !== 'sso') {
+        console.log('[eWallet-SSO] Ignoring logout deep link — session is manual, not SSO');
+        return;
+      }
+      console.log('[eWallet-SSO] Received logout deep link — clearing SSO session');
+      await logout();
+    };
+
+    const onDeepLink = (event: { url: string }) => {
+      if (event.url?.includes('logout')) handleLogoutDeepLink();
+      else if (event.url?.includes('login')) handleSSODeepLink(event.url);
+    };
+
+    const sub = Linking.addEventListener('url', onDeepLink);
+
+    // Cold start: app opened via SSO link (getInitialURL)
+    if (!initialURLProcessed.current) {
+      initialURLProcessed.current = true;
+      Linking.getInitialURL().then((url) => {
+        if (url?.includes('logout')) handleLogoutDeepLink();
+        else if (url?.includes('login')) handleSSODeepLink(url);
+      });
+    }
+
     return () => sub.remove();
-  }, []);
+  }, [loginSSO, logout]);
 
   // Check for RTDB logoutAt signal on app foreground (SSO sessions only)
   useEffect(() => {
@@ -32,7 +63,6 @@ function AppContent() {
     const sub = AppState.addEventListener('change', async (state) => {
       if (state !== 'active' || !session.passcodeHash) return;
       try {
-        const { default: SecureStore } = await import('expo-secure-store');
         const authMethod = await SecureStore.getItemAsync('wbew_authMethod');
         if (authMethod !== 'sso') return;
         const { firebaseGet } = await import('../services/driverAuth');

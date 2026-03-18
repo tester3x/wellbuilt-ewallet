@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +14,7 @@ export default function LoginScreen() {
   const [passcode, setPasscode] = useState('');
   const [company, setCompany] = useState('');
   const [legalName, setLegalName] = useState('');
+  const [showPasscode, setShowPasscode] = useState(false);
   const nameRef = useRef<TextInput>(null);
   const legalRef = useRef<TextInput>(null);
   const companyRef = useRef<TextInput>(null);
@@ -76,7 +77,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={[s.container, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={s.centerContent}>
-          <MaterialCommunityIcons name="wallet" size={64} color={colors.brand.wallet} />
+          <Image source={require('../assets/icon.png')} style={s.appIcon} />
           <Text style={s.title}>{t('login.title')}</Text>
           <Text style={s.subtitle}>{t('login.subtitle')}</Text>
 
@@ -123,17 +124,29 @@ export default function LoginScreen() {
               </>
             )}
 
-            <TextInput
-              ref={passRef}
-              style={s.input}
-              placeholder={t('login.passcode')}
-              placeholderTextColor={colors.text.muted}
-              value={passcode}
-              onChangeText={setPasscode}
-              secureTextEntry
-              returnKeyType="go"
-              onSubmitEditing={handleSubmit}
-            />
+            <View style={s.passRow}>
+              <TextInput
+                ref={passRef}
+                style={[s.input, s.passInput]}
+                placeholder={t('login.passcode')}
+                placeholderTextColor={colors.text.muted}
+                value={passcode}
+                onChangeText={setPasscode}
+                secureTextEntry={!showPasscode}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="go"
+                blurOnSubmit={false}
+                onSubmitEditing={handleSubmit}
+              />
+              <Pressable onPress={() => setShowPasscode(!showPasscode)} style={s.eyeBtn}>
+                <MaterialCommunityIcons
+                  name={showPasscode ? 'eye-off-outline' : 'eye-outline'}
+                  size={22}
+                  color={colors.text.muted}
+                />
+              </Pressable>
+            </View>
 
             {(mode === 'error' && error) ? (
               <Text style={s.error}>{error}</Text>
@@ -163,12 +176,24 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
   centerContent: { alignItems: 'center' },
+  appIcon: { width: 100, height: 100, borderRadius: 20 },
   title: { ...typography.h1, color: colors.text.primary, marginTop: spacing.md },
   subtitle: { ...typography.bodySmall, color: colors.text.muted, marginTop: spacing.xs, textAlign: 'center' },
   form: { width: '100%', marginTop: spacing.xl, gap: spacing.md },
   input: {
     backgroundColor: colors.bg.card, borderRadius: radius.md, padding: spacing.md,
     color: colors.text.primary, fontSize: 16, borderWidth: 1, borderColor: colors.border.subtle,
+  },
+  passRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const,
+  },
+  passInput: {
+    flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRightWidth: 0,
+  },
+  eyeBtn: {
+    backgroundColor: colors.bg.card, borderRadius: radius.md, borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
+    borderWidth: 1, borderColor: colors.border.subtle, borderLeftWidth: 0,
+    padding: spacing.md, justifyContent: 'center' as const, alignItems: 'center' as const,
   },
   btn: {
     backgroundColor: colors.brand.wallet, borderRadius: radius.md, padding: spacing.md,

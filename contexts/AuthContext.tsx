@@ -3,6 +3,7 @@ import {
   DriverSession, verifyLogin, saveDriverSession, getDriverSession,
   clearDriverSession, revalidateDriverSession, submitRegistration,
   checkRegistrationStatus, completeRegistration, getPendingRegistration,
+  firebaseGet,
 } from '../services/driverAuth';
 
 type AuthMode = 'checking' | 'login' | 'register' | 'verifying' | 'registering' | 'pending' | 'approved' | 'rejected' | 'error' | 'authenticated';
@@ -13,6 +14,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   error: string;
   login(displayName: string, passcode: string): Promise<boolean>;
+  loginSSO(hash: string, name: string): Promise<boolean>;
   register(displayName: string, passcode: string, companyName?: string, legalName?: string): Promise<boolean>;
   completeReg(): Promise<boolean>;
   logout(): Promise<void>;
@@ -100,6 +102,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   }, []);
 
+  const loginSSO = useCallback(async (hash: string, name: string): Promise<boolean> => {
+    try {
+      // Check if already logged in with same hash — no swap needed
+      const current = await getDriverSession();
+      if (current?.passcodeHash === hash) {
+        console.log('[eWallet-SSO] Same identity, no swap needed');
+        return true;
+      }
+
+      // Validate hash against RTDB
+      const data = await firebaseGet(`drivers/approved/${hash}`);
+      if (!data?.displayName) return false;
+      if (data.active === false) return false;
+      if (data.displayName.toLowerCase() !== name.toLowerCase()) return false;
+
+      // Save session with SSO authMethod
+      await saveDriverSession(
+        hash, data.displayName, hash,
+        data.isAdmin === true, data.isViewer === true,
+        data.companyId || undefined, data.companyName || undefined,
+        data.legalName || undefined, 'sso'
+      );
+      console.log('[eWallet-SSO] Identity set:', data.displayName, 'company:', data.companyId || 'none');
+
+      const s = await getDriverSession();
+      setSession(s);
+      setMode('authenticated');
+      return true;
+    } catch (err) {
+      console.error('[eWallet-SSO] Login failed:', err);
+      return false;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     await clearDriverSession();
     setSession(null);
@@ -109,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       mode, session, isAuthenticated: mode === 'authenticated', error,
-      login, register, completeReg, logout,
+      login, loginSSO, register, completeReg, logout,
       switchToRegister: () => { setMode('register'); setError(''); },
       switchToLogin: () => { setMode('login'); setError(''); },
       tryAgain: () => { setMode('login'); setError(''); },
