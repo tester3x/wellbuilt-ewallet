@@ -1,30 +1,65 @@
 {
   "expo": {
-    "name": "wellbuilt-ewallet",
+    "name": "WB eWallet",
     "slug": "wellbuilt-ewallet",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "scheme": "wbewallet",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0E1A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wellbuilt.ewallet",
+      "infoPlist": {
+        "NSCameraUsageDescription": "WB eWallet needs camera access to photograph your documents (CDL, medical card, insurance, etc.)",
+        "NSPhotoLibraryUsageDescription": "WB eWallet needs photo library access to import document photos"
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0A0E1A"
       },
-      "predictiveBackGestureEnabled": false
+      "package": "com.wellbuilt.ewallet",
+      "permissions": ["CAMERA"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "WB eWallet needs camera access to photograph your documents."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "WB eWallet needs photo library access to import document photos."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "placeholder-update-after-eas-init"
+      },
+      "router": {
+        "origin": false
+      }
+    },
+    "owner": "testerxxx"
   }
 }
