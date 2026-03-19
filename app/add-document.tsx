@@ -153,10 +153,13 @@ export default function AddDocumentScreen() {
         </View>
         {imageUri && (
           <View style={s.photoPreviewWrap}>
-            <Image source={{ uri: imageUri }} style={s.photoThumb} resizeMode="cover" />
+            <Image source={{ uri: imageUri }} style={s.photoThumb} resizeMode="contain" />
             <View style={s.photoPreview}>
               <MaterialCommunityIcons name="check-circle" size={20} color={colors.status.valid} />
               <Text style={s.photoPreviewText}>{t('addDoc.photoCaptured')}</Text>
+              <Pressable onPress={handleCamera} style={{ marginRight: spacing.sm }}>
+                <MaterialCommunityIcons name="camera-retake" size={20} color={colors.brand.wallet} />
+              </Pressable>
               <Pressable onPress={() => setImageUri(null)}>
                 <MaterialCommunityIcons name="close-circle" size={20} color={colors.text.muted} />
               </Pressable>
@@ -231,7 +234,7 @@ const s = StyleSheet.create({
   photoBtnText: { ...typography.bodySmall, color: colors.text.secondary },
   photoPreviewWrap: { marginTop: spacing.md },
   photoThumb: {
-    width: '100%', height: 160, borderRadius: radius.md,
+    width: '100%', aspectRatio: 4 / 3, borderRadius: radius.md,
     backgroundColor: colors.bg.card,
   },
   photoPreview: {

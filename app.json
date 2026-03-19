@@ -51,7 +51,8 @@
         {
           "photosPermission": "WB eWallet needs photo library access to import document photos."
         }
-      ]
+      ],
+      "react-native-document-scanner-plugin"
     ],
     "experiments": {
       "typedRoutes": true
