@@ -36,6 +36,16 @@ function AppContent() {
       const incomingName = decodeURIComponent(nameMatch[1]);
       console.log('[eWallet-SSO] Deep link received for:', incomingName);
 
+      // Extract truck/trailer from SSO params (passed by WB S)
+      const truckMatch = url.match(/[?&]truck=([^&]+)/);
+      const trailerMatch = url.match(/[?&]trailer=([^&]+)/);
+      if (truckMatch) {
+        await SecureStore.setItemAsync('wbew_truckNumber', decodeURIComponent(truckMatch[1]));
+      }
+      if (trailerMatch) {
+        await SecureStore.setItemAsync('wbew_trailerNumber', decodeURIComponent(trailerMatch[1]));
+      }
+
       await loginSSO(incomingHash, incomingName);
     };
 
@@ -105,6 +115,7 @@ function AppContent() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="add-document" options={{ headerShown: true, headerStyle: { backgroundColor: colors.bg.secondary }, headerTintColor: colors.text.primary, title: 'Add Document' }} />
         <Stack.Screen name="view-document" options={{ headerShown: true, headerStyle: { backgroundColor: colors.bg.secondary }, headerTintColor: colors.text.primary, title: 'Document' }} />
+        <Stack.Screen name="retrieve-docs" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="camera" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       </Stack>
     </>

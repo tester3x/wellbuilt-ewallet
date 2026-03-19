@@ -159,6 +159,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[eWallet] SSO logout — wiping local document cache');
       await clearLocalDocuments();
     }
+    // Clear vehicle doc cache (just metadata — re-fetched next login)
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.multiRemove(['wbew_vehicleDocs', 'wbew_vehicleDocs_truck', 'wbew_vehicleDocs_trailer']);
+    } catch {}
     await clearDriverSession();
     setSession(null);
     setMode('login');

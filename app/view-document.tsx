@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Alert, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Alert, Dimensions, Platform, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,18 +7,42 @@ import { useTranslation } from '../i18n';
 import { colors, spacing, radius, typography } from '../constants/colors';
 import { getDocument, deleteDocument, isExpired, daysUntilExpiration } from '../services/documentStore';
 import { DriverDocument, DOC_TYPE_LABELS, DOC_TYPE_ICONS, DocumentType } from '../services/firebase';
+import { getCachedVehicleDocs, type VehicleDocument } from '../services/vehicleDocuments';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const COMPACT_HEIGHT = Math.min(SCREEN_WIDTH * 0.55, 300);
 
 export default function ViewDocumentScreen() {
   const { t } = useTranslation();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, vehicle, storageUrl: paramStorageUrl, label: paramLabel, expirationDate: paramExpDate, documentNumber: paramDocNum } = useLocalSearchParams<{
+    id: string;
+    vehicle?: string;
+    storageUrl?: string;
+    label?: string;
+    expirationDate?: string;
+    documentNumber?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const [doc, setDoc] = useState<DriverDocument | null>(null);
   const [imageExpanded, setImageExpanded] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+  const isVehicleDoc = vehicle === 'true';
 
   useEffect(() => {
-    if (id) getDocument(id).then(setDoc);
+    if (isVehicleDoc && id) {
+      // Build a DriverDocument-like object from vehicle doc params
+      setDoc({
+        id,
+        type: 'other' as DocumentType,
+        label: paramLabel || 'Vehicle Document',
+        imageUri: paramStorageUrl || '',
+        expirationDate: paramExpDate || undefined,
+        documentNumber: paramDocNum || undefined,
+        createdAt: '',
+      } as DriverDocument);
+    } else if (id) {
+      getDocument(id).then(setDoc);
+    }
   }, [id]);
 
   if (!doc) {
@@ -50,10 +74,17 @@ export default function ViewDocumentScreen() {
         {/* Document Image */}
         {doc.imageUri && (
           <Pressable onPress={() => setImageExpanded(!imageExpanded)}>
+            {imageLoading && (
+              <View style={[s.imageCompact, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator color={colors.brand.wallet} size="large" />
+              </View>
+            )}
             <Image
               source={{ uri: doc.imageUri }}
-              style={imageExpanded ? s.imageExpanded : s.imageCompact}
+              style={[imageExpanded ? s.imageExpanded : s.imageCompact, imageLoading && { position: 'absolute', opacity: 0 }]}
               resizeMode={imageExpanded ? 'contain' : 'cover'}
+              onLoadStart={() => setImageLoading(true)}
+              onLoadEnd={() => setImageLoading(false)}
             />
             <View style={s.expandHint}>
               <MaterialCommunityIcons name={imageExpanded ? 'arrow-collapse' : 'arrow-expand'} size={16} color="#fff" />
@@ -106,13 +137,15 @@ export default function ViewDocumentScreen() {
           </View>
         </View>
 
-        {/* Actions */}
-        <View style={s.actions}>
-          <Pressable onPress={handleDelete} style={s.deleteBtn}>
-            <MaterialCommunityIcons name="delete-outline" size={20} color={colors.status.expired} />
-            <Text style={s.deleteBtnText}>{t('viewDoc.deleteBtn')}</Text>
-          </Pressable>
-        </View>
+        {/* Actions — hide delete for vehicle docs (company property) */}
+        {!isVehicleDoc && (
+          <View style={s.actions}>
+            <Pressable onPress={handleDelete} style={s.deleteBtn}>
+              <MaterialCommunityIcons name="delete-outline" size={20} color={colors.status.expired} />
+              <Text style={s.deleteBtnText}>{t('viewDoc.deleteBtn')}</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -131,7 +164,7 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   loading: { ...typography.body, color: colors.text.muted, textAlign: 'center', marginTop: 100 },
   content: { paddingBottom: spacing.xxl },
-  imageCompact: { width: SCREEN_WIDTH, height: 220, borderRadius: 0 },
+  imageCompact: { width: SCREEN_WIDTH, height: COMPACT_HEIGHT, borderRadius: 0 },
   imageExpanded: { width: SCREEN_WIDTH, height: SCREEN_WIDTH * 0.75, borderRadius: 0 },
   expandHint: {
     position: 'absolute', bottom: spacing.sm, right: spacing.sm,

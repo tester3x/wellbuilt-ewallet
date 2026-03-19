@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation, Locale } from '../../i18n';
 import { colors, spacing, radius, typography } from '../../constants/colors';
@@ -16,9 +17,19 @@ export default function SettingsScreen() {
   const [docCount, setDocCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [truckNumber, setTruckNumber] = useState('');
+  const [trailerNumber, setTrailerNumber] = useState('');
+  const [vehicleDirty, setVehicleDirty] = useState(false);
 
   useFocusEffect(useCallback(() => {
     getAllDocuments().then(docs => setDocCount(docs.length));
+    // Load vehicle info
+    (async () => {
+      const truck = await SecureStore.getItemAsync('wbew_truckNumber');
+      const trailer = await SecureStore.getItemAsync('wbew_trailerNumber');
+      setTruckNumber(truck || '');
+      setTrailerNumber(trailer || '');
+    })();
   }, []));
 
   const handleSync = async () => {
@@ -73,6 +84,56 @@ export default function SettingsScreen() {
                 {session?.companyName && <Text style={s.profileSub}>{session.companyName}</Text>}
               </View>
             </View>
+          </View>
+        </View>
+
+        {/* Vehicle Setup */}
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>VEHICLE SETUP</Text>
+          <View style={s.card}>
+            <View style={s.inputRow}>
+              <MaterialCommunityIcons name="truck" size={22} color={colors.brand.wallet} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.inputLabel}>Truck #</Text>
+                <TextInput
+                  style={s.input}
+                  value={truckNumber}
+                  onChangeText={v => { setTruckNumber(v); setVehicleDirty(true); }}
+                  placeholder="e.g. 4608"
+                  placeholderTextColor={colors.text.muted}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+            <View style={[s.inputRow, { marginTop: spacing.sm }]}>
+              <MaterialCommunityIcons name="truck-trailer" size={22} color={colors.brand.wallet} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.inputLabel}>Trailer #</Text>
+                <TextInput
+                  style={s.input}
+                  value={trailerNumber}
+                  onChangeText={v => { setTrailerNumber(v); setVehicleDirty(true); }}
+                  placeholder="e.g. T-15"
+                  placeholderTextColor={colors.text.muted}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+            {vehicleDirty && (
+              <Pressable
+                onPress={async () => {
+                  await SecureStore.setItemAsync('wbew_truckNumber', truckNumber.trim());
+                  await SecureStore.setItemAsync('wbew_trailerNumber', trailerNumber.trim());
+                  setVehicleDirty(false);
+                  Alert.alert('Saved', 'Vehicle info updated');
+                }}
+                style={[s.syncBtn, { backgroundColor: colors.brand.wallet }]}
+              >
+                <MaterialCommunityIcons name="content-save" size={20} color="#fff" />
+                <Text style={s.syncBtnText}>Save Vehicle Info</Text>
+              </Pressable>
+            )}
+            <Text style={s.syncNote}>Vehicle docs for this truck/trailer will appear on your wallet.</Text>
           </View>
         </View>
 
@@ -152,4 +213,7 @@ const s = StyleSheet.create({
   logoutText: { color: colors.status.expired, fontWeight: '600', fontSize: 14 },
   langRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   langBadge: { color: colors.brand.wallet, fontWeight: '700', fontSize: 14 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  inputLabel: { ...typography.caption, color: colors.text.muted, fontWeight: '700', marginBottom: 2 },
+  input: { backgroundColor: colors.bg.primary, borderRadius: radius.md, padding: spacing.sm, color: colors.text.primary, fontSize: 16, borderWidth: 1, borderColor: colors.border.subtle },
 });
