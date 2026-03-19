@@ -131,8 +131,8 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   loading: { ...typography.body, color: colors.text.muted, textAlign: 'center', marginTop: 100 },
   content: { paddingBottom: spacing.xxl },
-  imageCompact: { width: SCREEN_WIDTH, height: 200 },
-  imageExpanded: { width: SCREEN_WIDTH, height: SCREEN_WIDTH * 1.3 },
+  imageCompact: { width: SCREEN_WIDTH, height: 220, borderRadius: 0 },
+  imageExpanded: { width: SCREEN_WIDTH, height: SCREEN_WIDTH * 0.75, borderRadius: 0 },
   expandHint: {
     position: 'absolute', bottom: spacing.sm, right: spacing.sm,
     flexDirection: 'row', alignItems: 'center', gap: 4,

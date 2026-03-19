@@ -37,8 +37,9 @@ export default function AddDocumentScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      quality: 0.8,
+      quality: 0.7,
       allowsEditing: true,
+      aspect: [4, 3],
     });
     if (!result.canceled && result.assets[0]) {
       setImageUri(result.assets[0].uri);
@@ -52,8 +53,9 @@ export default function AddDocumentScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.8,
+      quality: 0.7,
       allowsEditing: true,
+      aspect: [4, 3],
     });
     if (!result.canceled && result.assets[0]) {
       setImageUri(result.assets[0].uri);
