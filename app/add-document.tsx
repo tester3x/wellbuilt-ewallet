@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../i18n';
 import { colors, spacing, radius, typography } from '../constants/colors';
 import { DocumentType, DOC_TYPE_LABELS, DOC_TYPE_ICONS } from '../services/firebase';
 import { saveDocument, saveImageLocally } from '../services/documentStore';
+import { getCapturedImageUri } from '../services/capturedImage';
 
 const DOC_TYPES: DocumentType[] = [
   'cdl', 'medical_card', 'insurance', 'registration',
@@ -30,20 +32,16 @@ export default function AddDocumentScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const handleCamera = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(t('addDoc.cameraPermTitle'), t('addDoc.cameraPermMsg'));
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.7,
-      allowsEditing: true,
-      aspect: [4, 3],
-    });
-    if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
-    }
+  // Pick up image from custom camera screen when returning
+  useFocusEffect(
+    useCallback(() => {
+      const uri = getCapturedImageUri();
+      if (uri) setImageUri(uri);
+    }, [])
+  );
+
+  const handleCamera = () => {
+    router.push('/camera');
   };
 
   const handleGallery = async () => {
@@ -53,12 +51,18 @@ export default function AddDocumentScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.7,
+      quality: 0.8,
       allowsEditing: true,
       aspect: [4, 3],
     });
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      // Resize gallery picks to same document size as camera
+      const resized = await manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.8, format: SaveFormat.JPEG },
+      );
+      setImageUri(resized.uri);
     }
   };
 
@@ -146,12 +150,15 @@ export default function AddDocumentScreen() {
           </Pressable>
         </View>
         {imageUri && (
-          <View style={s.photoPreview}>
-            <MaterialCommunityIcons name="check-circle" size={20} color={colors.status.valid} />
-            <Text style={s.photoPreviewText}>{t('addDoc.photoCaptured')}</Text>
-            <Pressable onPress={() => setImageUri(null)}>
-              <MaterialCommunityIcons name="close-circle" size={20} color={colors.text.muted} />
-            </Pressable>
+          <View style={s.photoPreviewWrap}>
+            <Image source={{ uri: imageUri }} style={s.photoThumb} resizeMode="cover" />
+            <View style={s.photoPreview}>
+              <MaterialCommunityIcons name="check-circle" size={20} color={colors.status.valid} />
+              <Text style={s.photoPreviewText}>{t('addDoc.photoCaptured')}</Text>
+              <Pressable onPress={() => setImageUri(null)}>
+                <MaterialCommunityIcons name="close-circle" size={20} color={colors.text.muted} />
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -211,9 +218,14 @@ const s = StyleSheet.create({
     backgroundColor: colors.bg.card, borderWidth: 1, borderColor: colors.border.accent,
   },
   photoBtnText: { ...typography.bodySmall, color: colors.text.secondary },
+  photoPreviewWrap: { marginTop: spacing.md },
+  photoThumb: {
+    width: '100%', height: 160, borderRadius: radius.md,
+    backgroundColor: colors.bg.card,
+  },
   photoPreview: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    marginTop: spacing.md, padding: spacing.md, borderRadius: radius.md,
+    marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md,
     backgroundColor: `${colors.status.valid}10`,
   },
   photoPreviewText: { ...typography.bodySmall, color: colors.status.valid, flex: 1 },
