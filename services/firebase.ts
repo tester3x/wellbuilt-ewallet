@@ -35,6 +35,8 @@ export interface DriverDocument {
   documentNumber?: string;
   state?: string; // issuing state
   notes?: string;
+  // Privacy
+  personal?: boolean; // true = wiped on SSO logout from shared device
   // Timestamps
   createdAt: string;
   updatedAt: string;
@@ -80,6 +82,21 @@ export const DOC_TYPE_ICONS: Record<DocumentType, string> = {
   drug_test: 'test-tube',
   training_cert: 'certificate',
   other: 'file-outline',
+};
+
+// Default personal flag per doc type — CDL and medical card are personal by default
+export const DOC_TYPE_DEFAULT_PERSONAL: Record<DocumentType, boolean> = {
+  cdl: true,
+  medical_card: true,
+  insurance: false,
+  registration: false,
+  dot_inspection: false,
+  hazmat_cert: false,
+  twic_card: false,
+  ifta_permit: false,
+  drug_test: false,
+  training_cert: false,
+  other: false,
 };
 
 const DOCS_COLLECTION = 'driver_documents';

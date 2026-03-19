@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import {
   DriverSession, verifyLogin, saveDriverSession, getDriverSession,
   clearDriverSession, revalidateDriverSession, submitRegistration,
   checkRegistrationStatus, completeRegistration, getPendingRegistration,
   firebaseGet,
 } from '../services/driverAuth';
+import { syncFromCloud, clearLocalDocuments } from '../services/documentStore';
 
 type AuthMode = 'checking' | 'login' | 'register' | 'verifying' | 'registering' | 'pending' | 'approved' | 'rejected' | 'error' | 'authenticated';
 
@@ -73,6 +75,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const s = await getDriverSession();
       setSession(s);
       setMode('authenticated');
+      // Background sync docs from cloud
+      if (result.passcodeHash) {
+        syncFromCloud(result.passcodeHash).then(r =>
+          console.log(`[eWallet] Cloud sync: ${r.downloaded} downloaded, ${r.errors} errors`)
+        ).catch(() => {});
+      }
       return true;
     }
     setError(result.error || 'Login failed');
@@ -96,6 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const s = await getDriverSession();
       setSession(s);
       setMode('authenticated');
+      // Background sync (new user likely has no docs, but covers re-registration)
+      if (s?.passcodeHash) {
+        syncFromCloud(s.passcodeHash).catch(() => {});
+      }
       return true;
     }
     setError(result.error || 'Failed to complete registration');
@@ -129,6 +141,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const s = await getDriverSession();
       setSession(s);
       setMode('authenticated');
+      // Background sync docs from cloud
+      syncFromCloud(hash).then(r =>
+        console.log(`[eWallet] Cloud sync: ${r.downloaded} downloaded, ${r.errors} errors`)
+      ).catch(() => {});
       return true;
     } catch (err) {
       console.error('[eWallet-SSO] Login failed:', err);
@@ -137,6 +153,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Wipe local docs on SSO logout (shared device), keep on manual logout (personal device)
+    const authMethod = await SecureStore.getItemAsync('wbew_authMethod');
+    if (authMethod === 'sso') {
+      console.log('[eWallet] SSO logout — wiping local document cache');
+      await clearLocalDocuments();
+    }
     await clearDriverSession();
     setSession(null);
     setMode('login');

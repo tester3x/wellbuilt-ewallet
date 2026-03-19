@@ -6,7 +6,7 @@ import {
   documentDirectory, getInfoAsync, makeDirectoryAsync, readAsStringAsync,
   writeAsStringAsync, deleteAsync, copyAsync, EncodingType,
 } from 'expo-file-system/legacy';
-import { DriverDocument, DocumentType, uploadDocument, deleteDocumentFromCloud, uploadImageToStorage, deleteImageFromStorage } from './firebase';
+import { DriverDocument, DocumentType, uploadDocument, fetchDriverDocuments, deleteDocumentFromCloud, uploadImageToStorage, deleteImageFromStorage } from './firebase';
 
 const DOCS_DIR = `${documentDirectory}ewallet/`;
 const INDEX_FILE = `${DOCS_DIR}index.json`;
@@ -53,6 +53,39 @@ export async function saveDocument(doc: DriverDocument): Promise<void> {
   if (idx >= 0) all[idx] = doc;
   else all.push(doc);
   await saveIndex(all);
+
+  // Background cloud upload — fire and forget
+  if (doc.driverHash) {
+    uploadToCloudBackground(doc).catch(() => {});
+  }
+}
+
+async function uploadToCloudBackground(doc: DriverDocument): Promise<void> {
+  try {
+    // Upload image first if not already in cloud
+    if (doc.imageUri && !doc.cloudUri) {
+      const imageInfo = await getInfoAsync(doc.imageUri);
+      if (imageInfo.exists) {
+        const base64 = await readAsStringAsync(doc.imageUri, { encoding: EncodingType.Base64 });
+        const response = await fetch(`data:image/jpeg;base64,${base64}`);
+        const blob = await response.blob();
+        const cloudUrl = await uploadImageToStorage(doc.driverHash, doc.id, blob);
+        if (cloudUrl) doc.cloudUri = cloudUrl;
+      }
+    }
+    // Upload metadata to Firestore
+    const result = await uploadDocument({ ...doc, driverHash: doc.driverHash });
+    if (result.success) {
+      doc.syncedAt = new Date().toISOString();
+      // Update local index with syncedAt + cloudUri
+      const all = await loadIndex();
+      const idx = all.findIndex(d => d.id === doc.id);
+      if (idx >= 0) { all[idx] = doc; await saveIndex(all); }
+      console.log(`[eWallet] Doc ${doc.id} synced to cloud`);
+    }
+  } catch (err) {
+    console.warn('[eWallet] Background cloud upload failed (will retry later):', err);
+  }
 }
 
 export async function deleteDocument(id: string): Promise<void> {
@@ -116,6 +149,71 @@ export async function syncToCloud(driverHash: string): Promise<{ synced: number;
 
   if (synced > 0) await saveIndex(all);
   return { synced, failed };
+}
+
+// --- Sync FROM Cloud (login) ---
+
+export async function syncFromCloud(driverHash: string): Promise<{ downloaded: number; errors: number }> {
+  const cloudDocs = await fetchDriverDocuments(driverHash);
+  if (cloudDocs.length === 0) return { downloaded: 0, errors: 0 };
+
+  await ensureDir();
+  const localDocs = await loadIndex();
+  let downloaded = 0;
+  let errors = 0;
+
+  for (const cloudDoc of cloudDocs) {
+    // Skip if local version is same or newer
+    const localDoc = localDocs.find(d => d.id === cloudDoc.id);
+    if (localDoc?.syncedAt && cloudDoc.syncedAt && localDoc.syncedAt >= cloudDoc.syncedAt) continue;
+
+    try {
+      // Download image if we have a cloud URL
+      let localImageUri = localDoc?.imageUri || '';
+      if (cloudDoc.cloudUri) {
+        const ext = 'jpg';
+        const localPath = `${DOCS_DIR}${cloudDoc.id}.${ext}`;
+        const info = await getInfoAsync(localPath);
+        if (!info.exists) {
+          // Download image from Firebase Storage
+          const { downloadAsync } = await import('expo-file-system/legacy');
+          const result = await downloadAsync(cloudDoc.cloudUri, localPath);
+          localImageUri = result.uri;
+        } else {
+          localImageUri = localPath;
+        }
+      }
+
+      // Merge cloud doc with local image path
+      const merged: DriverDocument = {
+        ...cloudDoc,
+        imageUri: localImageUri || cloudDoc.imageUri,
+      };
+
+      // Update local index
+      const idx = localDocs.findIndex(d => d.id === cloudDoc.id);
+      if (idx >= 0) localDocs[idx] = merged;
+      else localDocs.push(merged);
+      downloaded++;
+    } catch (err) {
+      console.error(`[eWallet] Failed to sync doc ${cloudDoc.id}:`, err);
+      errors++;
+    }
+  }
+
+  if (downloaded > 0) await saveIndex(localDocs);
+  return { downloaded, errors };
+}
+
+// --- Clear Local Documents (SSO logout) ---
+
+export async function clearLocalDocuments(): Promise<void> {
+  try {
+    const info = await getInfoAsync(DOCS_DIR);
+    if (info.exists) await deleteAsync(DOCS_DIR, { idempotent: true });
+  } catch (err) {
+    console.error('[eWallet] Error clearing local documents:', err);
+  }
 }
 
 // --- Expiration Helpers ---

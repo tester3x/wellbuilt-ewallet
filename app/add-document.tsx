@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform, Image, Switch } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../i18n';
 import { colors, spacing, radius, typography } from '../constants/colors';
-import { DocumentType, DOC_TYPE_LABELS, DOC_TYPE_ICONS } from '../services/firebase';
+import { DocumentType, DOC_TYPE_LABELS, DOC_TYPE_ICONS, DOC_TYPE_DEFAULT_PERSONAL } from '../services/firebase';
 import { saveDocument, saveImageLocally } from '../services/documentStore';
 import { getCapturedImageUri } from '../services/capturedImage';
 
@@ -30,6 +30,7 @@ export default function AddDocumentScreen() {
   const [state, setState] = useState('');
   const [notes, setNotes] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [personal, setPersonal] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Pick up image from custom camera screen when returning
@@ -100,6 +101,7 @@ export default function AddDocumentScreen() {
         documentNumber: documentNumber.trim() || undefined,
         state: state.trim() || undefined,
         notes: notes.trim() || undefined,
+        personal,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -122,7 +124,7 @@ export default function AddDocumentScreen() {
             const key = `docTypes.${type}`;
             const label = t(key) !== key ? t(key) : DOC_TYPE_LABELS[type];
             return (
-            <Pressable key={type} onPress={() => { setSelectedType(type); setLabel(label); }} style={s.typeCard}>
+            <Pressable key={type} onPress={() => { setSelectedType(type); setLabel(label); setPersonal(DOC_TYPE_DEFAULT_PERSONAL[type]); }} style={s.typeCard}>
               <MaterialCommunityIcons name={DOC_TYPE_ICONS[type] as any} size={28} color={colors.brand.wallet} />
               <Text style={s.typeLabel}>{label}</Text>
             </Pressable>
@@ -183,6 +185,15 @@ export default function AddDocumentScreen() {
         <Text style={s.fieldLabel}>{t('addDoc.notes')}</Text>
         <TextInput style={[s.input, { height: 80, textAlignVertical: 'top' }]} value={notes} onChangeText={setNotes} placeholder={t('addDoc.notesPlaceholder')} placeholderTextColor={colors.text.muted} multiline />
 
+        {/* Personal Toggle */}
+        <View style={s.personalRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.personalLabel}>{t('addDoc.personal') !== 'addDoc.personal' ? t('addDoc.personal') : 'Personal Document'}</Text>
+            <Text style={s.personalHint}>{t('addDoc.personalHint') !== 'addDoc.personalHint' ? t('addDoc.personalHint') : 'Wiped from shared devices on logout'}</Text>
+          </View>
+          <Switch value={personal} onValueChange={setPersonal} trackColor={{ false: colors.border.subtle, true: colors.brand.wallet }} thumbColor="#fff" />
+        </View>
+
         {/* Save Button */}
         <Pressable onPress={handleSave} style={[s.saveBtn, saving && { opacity: 0.5 }]} disabled={saving}>
           <MaterialCommunityIcons name="content-save" size={20} color="#fff" />
@@ -240,6 +251,13 @@ const s = StyleSheet.create({
     marginTop: spacing.xl,
   },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  personalRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md,
+    backgroundColor: colors.bg.card, borderWidth: 1, borderColor: colors.border.subtle,
+  },
+  personalLabel: { ...typography.body, fontWeight: '600' },
+  personalHint: { ...typography.caption, color: colors.text.muted, marginTop: 2 },
   backLink: { alignItems: 'center', marginTop: spacing.md },
   backLinkText: { color: colors.text.muted, fontSize: 14 },
 });
