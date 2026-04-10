@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { LanguageProvider } from '../i18n';
 import { colors } from '../constants/colors';
+import AppSwitcher from '../components/AppSwitcher';
 
 function AppContent() {
   const { isAuthenticated, mode, session, logout, loginSSO } = useAuth();
@@ -18,7 +19,7 @@ function AppContent() {
     const inLoginGroup = segments[0] === 'login';
     const inPendingFlow = mode === 'pending' || mode === 'approved' || mode === 'rejected';
     if (isAuthenticated && inLoginGroup) {
-      router.replace('/(tabs)');
+      router.replace('/(hub)');
     } else if (!isAuthenticated && !inLoginGroup && !inPendingFlow) {
       router.replace('/login');
     }
@@ -111,13 +112,25 @@ function AppContent() {
           animation: 'none',
         }}
       >
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(hub)" />
+        <Stack.Screen name="(ewallet)" />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="add-document" options={{ headerShown: true, headerStyle: { backgroundColor: colors.bg.secondary }, headerTintColor: colors.text.primary, title: 'Add Document' }} />
         <Stack.Screen name="view-document" options={{ headerShown: true, headerStyle: { backgroundColor: colors.bg.secondary }, headerTintColor: colors.text.primary, title: 'Document' }} />
         <Stack.Screen name="retrieve-docs" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="camera" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       </Stack>
+      {/* AppSwitcher — floating WB ecosystem app launcher */}
+      {isAuthenticated && (
+        <AppSwitcher
+          selfScheme="wbewallet"
+          getIdentity={async () => {
+            const hash = await SecureStore.getItemAsync('wbew_passcodeHash');
+            const name = await SecureStore.getItemAsync('wbew_driverName');
+            return hash && name ? { hash, name } : null;
+          }}
+        />
+      )}
     </>
   );
 }
