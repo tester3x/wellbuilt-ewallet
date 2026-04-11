@@ -123,6 +123,7 @@ function AppContent() {
       {/* AppSwitcher — floating WB ecosystem app launcher */}
       {isAuthenticated && (
         <AppSwitcher
+          badgeSource={require('../assets/app-switcher-badge.png')}
           selfScheme="wbewallet"
           getIdentity={async () => {
             const hash = await SecureStore.getItemAsync('wbew_passcodeHash');
