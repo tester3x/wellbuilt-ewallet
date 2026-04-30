@@ -81,21 +81,45 @@ function AppContent() {
     return () => sub.remove();
   }, [loginSSO, logout]);
 
-  // Check for RTDB logoutAt signal on app foreground (SSO sessions only)
+  // Check for RTDB logoutAt signal on app foreground.
+  //
+  // Mirrors WB T's consumed-logoutAt baseline approach (post-2026-04-30
+  // redesign). Each session keeps a `wbew_lastConsumedLogoutAt` snapshot
+  // in SecureStore (seeded by saveDriverSession at login). ANY logoutAt
+  // strictly newer than the baseline fires the cascade and bumps the
+  // baseline so subsequent foregrounds don't re-fire on the same signal.
+  // ISO-8601 sorts lex == chrono so we compare strings directly.
+  //
+  // Cascade-logout policy (post-2026-04-30): WB S is the global logout
+  // authority for the matching driverHash. Both manual AND SSO sessions
+  // honor the signal — the prior `authMethod !== 'sso'` gate was removed
+  // to mirror the same change made in WB T.
   useEffect(() => {
     if (!isAuthenticated || !session) return;
     const sub = AppState.addEventListener('change', async (state) => {
       if (state !== 'active' || !session.passcodeHash) return;
       try {
-        const authMethod = await SecureStore.getItemAsync('wbew_authMethod');
-        if (authMethod !== 'sso') return;
         const { firebaseGet } = await import('../services/driverAuth');
         const data = await firebaseGet(`drivers/approved/${session.passcodeHash}/logoutAt`);
-        if (data) {
-          const verifiedAt = await SecureStore.getItemAsync('wbew_driverVerifiedAt');
-          if (verifiedAt && new Date(data).getTime() > parseInt(verifiedAt)) {
-            await logout();
-          }
+        const logoutAt = (typeof data === 'string' && data.length > 0) ? data : null;
+        if (!logoutAt) return;
+
+        const baseline = await SecureStore.getItemAsync('wbew_lastConsumedLogoutAt');
+
+        if (!baseline) {
+          // Race: saveDriverSession's seed never landed (offline at login).
+          // Compare to NOW — fresh signals fire, stale ones are seeded
+          // as already-consumed.
+          const nowIso = new Date().toISOString();
+          const fireOnSeed = logoutAt > nowIso;
+          await SecureStore.setItemAsync('wbew_lastConsumedLogoutAt', fireOnSeed ? logoutAt : nowIso);
+          if (fireOnSeed) await logout();
+          return;
+        }
+
+        if (logoutAt > baseline) {
+          await SecureStore.setItemAsync('wbew_lastConsumedLogoutAt', logoutAt);
+          await logout();
         }
       } catch {}
     });

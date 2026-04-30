@@ -138,6 +138,28 @@ export const saveDriverSession = async (
   if (legalName) await SecureStore.setItemAsync(`${PREFIX}legalName`, legalName);
   else await SecureStore.deleteItemAsync(`${PREFIX}legalName`);
   if (authMethod) await SecureStore.setItemAsync(`${PREFIX}authMethod`, authMethod);
+
+  // Cascade-logout baseline (post-2026-04-30 redesign — see WB T's
+  // driverProfile.ts for the canonical write-up). Snapshot the current
+  // RTDB logoutAt for this hash so the foreground listener in
+  // _layout.tsx can fire on any STRICTLY NEWER logoutAt going forward.
+  // Falls back to NOW if the seed fetch fails (offline) — stale signals
+  // older than NOW won't fire (treated as already-consumed by a prior
+  // session); newer signals from this point forward will fire normally.
+  try {
+    let baseline: string;
+    try {
+      const data = await firebaseGet(`${DRIVERS_APPROVED}/${passcodeHash}/logoutAt`);
+      baseline = (typeof data === 'string' && data.length > 0) ? data : new Date().toISOString();
+    } catch {
+      baseline = new Date().toISOString();
+    }
+    await SecureStore.setItemAsync(`${PREFIX}lastConsumedLogoutAt`, baseline);
+  } catch {
+    // Best-effort; if SecureStore write fails the listener's no-baseline
+    // fallback compares against NOW on first foreground.
+  }
+
   await clearPendingRegistration();
 };
 
@@ -162,7 +184,9 @@ export const getDriverSession = async (): Promise<DriverSession | null> => {
 
 export const clearDriverSession = async (): Promise<void> => {
   const keys = ['driverId', 'driverName', 'passcodeHash', 'isAdmin', 'isViewer',
-    'driverVerifiedAt', 'companyId', 'companyName', 'legalName', 'authMethod'];
+    'driverVerifiedAt', 'companyId', 'companyName', 'legalName', 'authMethod',
+    // Cascade-logout baseline — clear so next login seeds fresh from RTDB
+    'lastConsumedLogoutAt'];
   for (const k of keys) await SecureStore.deleteItemAsync(`${PREFIX}${k}`);
   await clearPendingRegistration();
 };
